@@ -57,7 +57,7 @@ app.post('/api/login', async (req, res, next) =>
   try
   {
     // database on the Atlas cluster
-    const db = client.db('COP4331Cards');
+    const db = client.db('GeoGames');
     // find one user whose loging and password both match
     const user = await db.collection('Users').findOne({ Login:login, Password:password });
 
@@ -99,7 +99,7 @@ app.post('/api/register', async (req, res, next) =>
   try
   {
     // selecting the database 
-    const db = client.db('COP4331Cards');
+    const db = client.db('GeoGames');
     // shortcut to the users collection
     const users = db.collection('Users');
 
@@ -148,7 +148,7 @@ app.post('/api/addcard', async (req, res, next) =>
   try
   {
     // select the project database
-    const db = client.db('COP4331Cards');
+    const db = client.db('GeoGames');
     // insert new card into cards collection
     await db.collection('Cards').insertOne(newCard);
   }
@@ -182,7 +182,7 @@ app.post('/api/searchcards', async (req, res, next) =>
   var _search = search.trim();
 
   // select the project database
-  const db = client.db('COP4331Cards');
+  const db = client.db('GeoGames');
   
   // query, find every card whos name matches the search text
   //    $regex -> pattern matching for search text ("rob matches Jackie Robinson")
