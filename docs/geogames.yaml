@@ -1,0 +1,430 @@
+openapi: 3.0.3
+info:
+  title: GeoGame API
+  description: |
+    API for **GeoGame**, a geography quiz (guess the country from its outline or flag).
+    Used by both the React website and the Flutter mobile app.
+
+    All endpoints send and receive **JSON**.
+
+    **Trying protected endpoints:** call `POST /api/login`, copy `accessToken`, click
+    **Authorize** and paste it. (The token can also be sent as `jwtToken` in the JSON body.)
+    Every protected response includes a refreshed `jwtToken`; use that one next.
+  version: 1.0.0
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/school-075/Geogame-API/1.0.0
+  - url: https://mern.tomasstep.com
+    description: Live server
+  - url: http://localhost:5000
+    description: Local development
+tags:
+  - name: Accounts
+    description: Register, verify email, log in, reset password
+  - name: Game
+    description: Save games, profile, history, leaderboard
+
+paths:
+  /api/register:
+    post:
+      tags: [Accounts]
+      summary: Create an account and send a verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created; verification email sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+              example: { message: Account created. Check your email to verify your account., id: 3, emailSent: true, error: '' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: Username or email already in use
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+              example: { message: '', id: -1, emailSent: false, error: That username is already in use }
+
+  /api/verify-email:
+    get:
+      tags: [Accounts]
+      summary: Verification link from the email (opens in a browser)
+      description: Marks the account verified, then redirects to the website with `?verified=1` (or `?verified=0` if the link is invalid or expired).
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirect to the website
+          headers:
+            Location:
+              schema: { type: string, example: 'https://mern.tomasstep.com/?verified=1' }
+
+  /api/resendverification:
+    post:
+      tags: [Accounts]
+      summary: Send a new verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailRequest' }
+      responses:
+        '200':
+          description: Same answer whether or not the account exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/login:
+    post:
+      tags: [Accounts]
+      summary: Log in with username (or email) and password; returns a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              example: { id: 1, firstName: Tomas, lastName: Stephens, login: tomas, accessToken: eyJhbGciOiJIUzI1NiIs..., error: '' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Wrong username or password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              example: { id: -1, firstName: '', lastName: '', login: '', accessToken: '', error: Invalid username or password }
+        '403':
+          description: Email not verified yet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              example: { id: -1, firstName: '', lastName: '', login: '', accessToken: '', needsVerification: true, error: Please verify your email before logging in }
+
+  /api/forgotpassword:
+    post:
+      tags: [Accounts]
+      summary: Email a password reset link (valid 1 hour)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailRequest' }
+      responses:
+        '200':
+          description: Same answer whether or not the email exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/resetpassword:
+    post:
+      tags: [Accounts]
+      summary: Set a new password using the token from the reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetRequest' }
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+              example: { message: Password updated. You can log in now., error: '' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/savegame:
+    post:
+      tags: [Game]
+      summary: Save a finished game; updates stats, high score, and daily streak
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveGameRequest' }
+      responses:
+        '200':
+          description: Game saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SaveGameResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/profile:
+    post:
+      tags: [Game]
+      summary: Player profile with stats, high scores, streak, and 10 most recent games
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenOnlyRequest' }
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/history:
+    post:
+      tags: [Game]
+      summary: The player's past games, newest first, with paging
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HistoryRequest' }
+      responses:
+        '200':
+          description: One page of games
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/leaderboard:
+    post:
+      tags: [Game]
+      summary: Top players by best score in a mode (public)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeaderboardRequest' }
+      responses:
+        '200':
+          description: Leaderboard
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaderboardResponse' }
+              example: { mode: outline, entries: [ { rank: 1, login: ana, firstName: Ana, score: 1000 }, { rank: 2, login: tomas, firstName: Tomas, score: 800 } ], error: '' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/health:
+    get:
+      tags: [Game]
+      summary: Check that the API is running
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              example: { status: ok }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Missing or invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: JWT missing, invalid, or expired
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: The JWT is missing, invalid, or expired. Please log in again., jwtToken: '' }
+    NotFound:
+      description: User not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [firstName, lastName, login, email, password]
+      properties:
+        firstName: { type: string, example: Tomas }
+        lastName: { type: string, example: Stephens }
+        login: { type: string, example: tomas }
+        email: { type: string, format: email, example: tomas@example.com }
+        password: { type: string, minLength: 6, example: secret123 }
+    RegisterResponse:
+      type: object
+      properties:
+        message: { type: string }
+        id: { type: integer }
+        emailSent: { type: boolean }
+        error: { type: string }
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, example: tomas@example.com }
+    MessageResponse:
+      type: object
+      properties:
+        message: { type: string }
+        error: { type: string }
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, description: Username or email, example: tomas }
+        password: { type: string, example: secret123 }
+    LoginResponse:
+      type: object
+      properties:
+        id: { type: integer, description: 'UserID, or -1 on failure' }
+        firstName: { type: string }
+        lastName: { type: string }
+        login: { type: string }
+        accessToken: { type: string, description: JWT for protected endpoints (expires in 30 minutes) }
+        needsVerification: { type: boolean, description: Only on 403 }
+        error: { type: string }
+    ResetRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string, description: The token from the reset email link }
+        password: { type: string, minLength: 6, example: newpass123 }
+    TokenOnlyRequest:
+      type: object
+      properties:
+        jwtToken: { type: string, description: Optional if you use the Authorize button }
+    SaveGameRequest:
+      type: object
+      required: [mode, correct, total]
+      properties:
+        jwtToken: { type: string, description: Optional if you use the Authorize button }
+        mode: { type: string, enum: [outline, flag], example: outline }
+        correct: { type: integer, minimum: 0, example: 8 }
+        total: { type: integer, minimum: 1, maximum: 50, example: 10 }
+        bestRun: { type: integer, minimum: 0, description: Most correct answers in a row, example: 5 }
+        durationSec: { type: integer, minimum: 0, maximum: 3600, example: 74 }
+        answers:
+          type: array
+          items:
+            type: object
+            properties:
+              country: { type: string, description: Correct country code, example: FR }
+              guess: { type: string, description: Code the player picked, example: FR }
+              correct: { type: boolean, example: true }
+    SaveGameResponse:
+      type: object
+      properties:
+        gameId: { type: string }
+        score: { type: integer, description: 100 points per correct answer, example: 800 }
+        highScore: { type: integer, example: 800 }
+        newHighScore: { type: boolean, example: true }
+        currentStreak: { type: integer, description: Days in a row played, example: 3 }
+        longestStreak: { type: integer, example: 5 }
+        error: { type: string }
+        jwtToken: { type: string, description: Refreshed token }
+    Game:
+      type: object
+      properties:
+        id: { type: string }
+        mode: { type: string, enum: [outline, flag] }
+        score: { type: integer }
+        correct: { type: integer }
+        total: { type: integer }
+        bestRun: { type: integer }
+        durationSec: { type: integer }
+        playedAt: { type: string, format: date-time }
+    ProfileResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: integer }
+            firstName: { type: string }
+            lastName: { type: string }
+            login: { type: string }
+            email: { type: string }
+            createdAt: { type: string, format: date-time }
+        stats:
+          type: object
+          properties:
+            gamesPlayed: { type: integer }
+            totalCorrect: { type: integer }
+            totalQuestions: { type: integer }
+            accuracy: { type: integer, description: Percent correct }
+            currentStreak: { type: integer }
+            longestStreak: { type: integer }
+            lastPlayedDate: { type: string, format: date-time, nullable: true }
+        highScores:
+          type: object
+          properties:
+            outline: { type: integer }
+            flag: { type: integer }
+        recentGames:
+          type: array
+          items: { $ref: '#/components/schemas/Game' }
+        error: { type: string }
+        jwtToken: { type: string }
+    HistoryRequest:
+      type: object
+      properties:
+        jwtToken: { type: string, description: Optional if you use the Authorize button }
+        mode: { type: string, enum: [outline, flag], description: Optional filter }
+        page: { type: integer, minimum: 1, default: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 50, default: 10 }
+    HistoryResponse:
+      type: object
+      properties:
+        games:
+          type: array
+          items: { $ref: '#/components/schemas/Game' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalGames: { type: integer }
+        totalPages: { type: integer }
+        error: { type: string }
+        jwtToken: { type: string }
+    LeaderboardRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode: { type: string, enum: [outline, flag], example: outline }
+        limit: { type: integer, minimum: 1, maximum: 50, default: 10 }
+    LeaderboardResponse:
+      type: object
+      properties:
+        mode: { type: string }
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              rank: { type: integer }
+              login: { type: string }
+              firstName: { type: string }
+              score: { type: integer }
+        error: { type: string }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+        jwtToken: { type: string }
